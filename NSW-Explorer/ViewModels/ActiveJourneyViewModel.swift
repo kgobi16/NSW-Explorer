@@ -2,9 +2,9 @@
 //  ActiveJourneyViewModel.swift
 //  NSW-Explorer
 //
-//  Created by Tlaitirang Rathete on 1/10/2025.
+//  Created by Tlaitirang Rathete on 3/10/2025.
 //
-//ViewModel managing active journey state and check-ins
+//  ViewModel managing active journey state and check-ins
 //  Handles journey progress, check-ins, photos, and notes
 //  Will connect to SQLite database in Section 7
 //
@@ -16,7 +16,7 @@ import PhotosUI
 /// Manages the state and logic for an active journey
 class ActiveJourneyViewModel: ObservableObject {
     
-    //Published Properties
+    // MARK: - Published Properties
     
     /// The currently active journey (nil if no journey active)
     @Published var activeJourney: ActiveJourney?
@@ -33,15 +33,19 @@ class ActiveJourneyViewModel: ObservableObject {
     /// Error message to display
     @Published var errorMessage: String?
     
-    //Journey Management
+    // MARK: - Journey Management
     
     /// Start a new journey
     /// Creates an ActiveJourney and sets it as current
     func startJourney(_ journey: Journey) {
         let newActiveJourney = ActiveJourney(
-            journey: journey,
+            journeyId: journey.id,
+            journeyName: journey.name,
+            stops: journey.stops,
             startedAt: Date(),
-            currentStopIndex: 0
+            currentStopIndex: 0,
+            category: journey.category,
+            totalDistance: journey.totalDistance
         )
         
         activeJourney = newActiveJourney
@@ -59,7 +63,7 @@ class ActiveJourneyViewModel: ObservableObject {
         activeJourney = journey
         
         // In Section 7, this will update database
-        print("Completed journey: \(journey.journey.name)")
+        print("Completed journey: \(journey.journeyName)")
     }
     
     /// Abandon/cancel the current journey
@@ -70,7 +74,7 @@ class ActiveJourneyViewModel: ObservableObject {
         print("Journey cancelled")
     }
     
-    //Check-In Management
+    // MARK: - Check-In Management
     
     /// Open check-in sheet for a specific stop
     func openCheckIn(for stop: Stop) {
@@ -78,7 +82,12 @@ class ActiveJourneyViewModel: ObservableObject {
         showCheckInSheet = true
     }
     
-
+    /// Create a check-in at a stop
+    /// - Parameters:
+    ///   - stop: The stop to check in at
+    ///   - notes: Optional notes about the visit
+    ///   - photoFilename: Optional photo filename
+    ///   - rating: Optional rating (1-5)
     func checkIn(
         at stop: Stop,
         notes: String?,
@@ -90,7 +99,7 @@ class ActiveJourneyViewModel: ObservableObject {
         // Create the check-in
         let checkIn = CheckIn(
             stopId: stop.id,
-            journeyId: journey.journey.id,
+            journeyId: journey.journeyId,
             timestamp: Date(),
             notes: notes,
             photoFilename: photoFilename,
@@ -102,7 +111,7 @@ class ActiveJourneyViewModel: ObservableObject {
         journey.checkIns.append(checkIn)
         
         // Move to next stop if available
-        if journey.currentStopIndex < journey.journey.stops.count - 1 {
+        if journey.currentStopIndex < journey.stops.count - 1 {
             journey.currentStopIndex += 1
         }
         
@@ -117,7 +126,7 @@ class ActiveJourneyViewModel: ObservableObject {
         print("Checked in at: \(stop.name)")
         
         // Check if journey is now complete
-        if journey.checkIns.count == journey.journey.stops.count {
+        if journey.checkIns.count == journey.stops.count {
             completeJourney()
         }
     }
@@ -175,7 +184,7 @@ class ActiveJourneyViewModel: ObservableObject {
     func estimatedTimeRemaining() -> Int {
         guard let journey = activeJourney else { return 0 }
         
-        let remainingStops = journey.journey.stops.suffix(from: journey.currentStopIndex)
+        let remainingStops = journey.stops.suffix(from: journey.currentStopIndex)
         let totalRemaining = remainingStops.reduce(0) { $0 + $1.estimatedStayDuration }
         
         return totalRemaining

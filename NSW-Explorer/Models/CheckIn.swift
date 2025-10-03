@@ -12,29 +12,38 @@
 import Foundation
 import SwiftUI
 
-//Check-In Model
+// MARK: - Check-In Model
 /// Represents a single check-in at a journey stop
 /// This captures the user's visit including timestamp, photos, and notes
 struct CheckIn: Identifiable, Codable, Hashable {
+    // MARK: - Properties
     
     /// Unique identifier for this check-in
     let id: UUID
+    
     /// ID of the stop where check-in occurred
     let stopId: UUID
+    
     /// ID of the journey this check-in belongs to
     let journeyId: UUID
+    
     /// When the check-in was created
     let timestamp: Date
+    
     /// Optional user notes about this stop
     var notes: String?
+    
     /// Optional photo filename/path
+    /// We store the filename, actual photo saved to documents directory
     var photoFilename: String?
+    
     /// Rating out of 5 stars (optional)
     var rating: Int?
+    
     /// Whether this check-in has been synced to cloud
     var isSynced: Bool
     
-    //Computed Properties
+    // MARK: - Computed Properties
     
     /// Human-readable timestamp
     var formattedTimestamp: String {
@@ -73,7 +82,7 @@ struct CheckIn: Identifiable, Codable, Hashable {
         rating != nil
     }
     
-    //Initializer
+    // MARK: - Initializer
     
     init(
         id: UUID = UUID(),
@@ -96,56 +105,55 @@ struct CheckIn: Identifiable, Codable, Hashable {
     }
 }
 
-//Active Journey Model - Represents a journey that's currently in progress
-
+// MARK: - Active Journey Model
+/// Represents a journey that's currently in progress
+/// Tracks which stops have been completed and user progress
 struct ActiveJourney: Identifiable, Codable {
-  
+    // MARK: - Properties
+    
     let id: UUID
-    let journey: Journey
+    let journeyId: UUID
+    let journeyName: String
+    let stops: [Stop]
     let startedAt: Date
     var completedAt: Date?
     var checkIns: [CheckIn]
     var currentStopIndex: Int
+    let category: JourneyCategory
+    let totalDistance: Double
     
-    //Computed Properties
+    // MARK: - Computed Properties
     
-    /// Whether this journey is completed
     var isCompleted: Bool {
         completedAt != nil
     }
     
-    /// Progress percentage (0.0 to 1.0)
     var progress: Double {
-        guard !journey.stops.isEmpty else { return 0 }
-        return Double(checkIns.count) / Double(journey.stops.count)
+        guard !stops.isEmpty else { return 0 }
+        return Double(checkIns.count) / Double(stops.count)
     }
     
-    /// Number of stops completed
     var completedStopsCount: Int {
         checkIns.count
     }
     
-    /// Current stop (if journey not completed)
     var currentStop: Stop? {
-        guard currentStopIndex < journey.stops.count else { return nil }
-        return journey.stops[currentStopIndex]
+        guard currentStopIndex < stops.count else { return nil }
+        return stops[currentStopIndex]
     }
     
-    /// Next stop (if available)
     var nextStop: Stop? {
         let nextIndex = currentStopIndex + 1
-        guard nextIndex < journey.stops.count else { return nil }
-        return journey.stops[nextIndex]
+        guard nextIndex < stops.count else { return nil }
+        return stops[nextIndex]
     }
     
-    /// Journey duration so far (in minutes)
     var durationMinutes: Int {
         let endTime = completedAt ?? Date()
         let duration = endTime.timeIntervalSince(startedAt)
         return Int(duration / 60)
     }
     
-    /// Human-readable duration string
     var durationString: String {
         let hours = durationMinutes / 60
         let minutes = durationMinutes % 60
@@ -159,32 +167,42 @@ struct ActiveJourney: Identifiable, Codable {
         }
     }
     
-    /// Check if a specific stop has been checked in
+    var distanceString: String {
+        String(format: "%.1f km", totalDistance)
+    }
+    
     func isStopCompleted(stopId: UUID) -> Bool {
         checkIns.contains { $0.stopId == stopId }
     }
     
-    /// Get check-in for a specific stop
     func getCheckIn(for stopId: UUID) -> CheckIn? {
         checkIns.first { $0.stopId == stopId }
     }
     
-    //Initializer
+    // MARK: - Initializer
     
     init(
         id: UUID = UUID(),
-        journey: Journey,
+        journeyId: UUID,
+        journeyName: String,
+        stops: [Stop],
         startedAt: Date = Date(),
         completedAt: Date? = nil,
         checkIns: [CheckIn] = [],
-        currentStopIndex: Int = 0
+        currentStopIndex: Int = 0,
+        category: JourneyCategory = .mixed,
+        totalDistance: Double = 0.0
     ) {
         self.id = id
-        self.journey = journey
+        self.journeyId = journeyId
+        self.journeyName = journeyName
+        self.stops = stops
         self.startedAt = startedAt
         self.completedAt = completedAt
         self.checkIns = checkIns
         self.currentStopIndex = currentStopIndex
+        self.category = category
+        self.totalDistance = totalDistance
     }
 }
 
@@ -235,10 +253,14 @@ extension ActiveJourney {
     /// Sample active journey for previews
     static var sample: ActiveJourney {
         ActiveJourney(
-            journey: Journey.sample,
+            journeyId: Journey.sample.id,
+            journeyName: Journey.sample.name,
+            stops: Journey.sample.stops,
             startedAt: Date().addingTimeInterval(-7200), // Started 2 hours ago
             checkIns: CheckIn.samples,
-            currentStopIndex: 2
+            currentStopIndex: 2,
+            category: Journey.sample.category,
+            totalDistance: Journey.sample.totalDistance
         )
     }
 }
