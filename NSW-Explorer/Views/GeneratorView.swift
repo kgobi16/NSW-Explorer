@@ -25,6 +25,15 @@ struct GeneratorView: View {
     /// Controls results display
     @State private var showResults: Bool = false
     
+    /// Generated journey from API
+    @State private var generatedJourney: GeneratedJourney?
+    
+    /// Error message if generation fails
+    @State private var errorMessage: String?
+    
+    /// Show error alert
+    @State private var showError: Bool = false
+    
     /// Available interest categories
     private let interests: [(String, String, Color)] = [
         ("Beaches", "beach.umbrella", .beachBlue),
@@ -60,7 +69,17 @@ struct GeneratorView: View {
             .navigationTitle("NSW Explorer")
             .navigationBarTitleDisplayMode(.large)
             .sheet(isPresented: $showResults) {
-                GeneratedTripResultsView(selectedInterests: Array(selectedInterests))
+                if let journey = generatedJourney {
+                    GeneratedTripResultsView(
+                        selectedInterests: Array(selectedInterests),
+                        generatedJourney: journey
+                    )
+                }
+            }
+            .alert("Error", isPresented: $showError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(errorMessage ?? "Failed to generate trip. Please try again.")
             }
         }
     }
@@ -242,10 +261,27 @@ struct GeneratorView: View {
     
     private func generateTrip() {
         isGenerating = true
+        errorMessage = nil
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            isGenerating = false
-            showResults = true
+        Task {
+            do {
+                let journey = try await JourneyGeneratorService.shared.generateJourney(
+                    for: Array(selectedInterests),
+                    duration: 1
+                )
+                
+                await MainActor.run {
+                    generatedJourney = journey
+                    isGenerating = false
+                    showResults = true
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    isGenerating = false
+                    showError = true
+                }
+            }
         }
     }
 }
@@ -361,6 +397,8 @@ struct InterestCard: View {
 struct GeneratedTripResultsView: View {
     @Environment(\.dismiss) var dismiss
     let selectedInterests: [String]
+    let generatedJourney: GeneratedJourney
+    @State private var showFullJourney = false
     
     var body: some View {
         NavigationStack {
@@ -368,7 +406,8 @@ struct GeneratedTripResultsView: View {
                 VStack(spacing: 24) {
                     successHeader
                     interestsSection
-                    placeholderJourneys
+                    journeyDetailsSection
+                    stopsPreviewSection
                     actionButtons
                 }
                 .padding(.vertical)
@@ -392,50 +431,56 @@ struct GeneratedTripResultsView: View {
                 .font(.system(size: 80))
                 .foregroundColor(.freshGreen)
             
-            Text("Trip Generated!")
+            Text(generatedJourney.title)
                 .font(.displaymedium)
                 .foregroundColor(.textPrimary)
+                .multilineTextAlignment(.center)
             
-            Text("Based on your interests:")
+            Text(generatedJourney.description)
                 .font(.bodyLarge)
                 .foregroundColor(.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
         }
     }
     
     private var interestsSection: some View {
-        FlowLayout(spacing: 8) {
-            ForEach(selectedInterests, id: \.self) { interest in
+        HStack {
+            ForEach(selectedInterests.sorted(), id: \.self) { interest in
                 InterestChip(text: interest)
             }
         }
         .padding(.horizontal)
     }
     
-    private var placeholderJourneys: some View {
+    private var journeyDetailsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Generated Journey")
+            Text("Journey Details")
                 .font(.headingLarge)
                 .foregroundColor(.textPrimary)
                 .padding(.horizontal)
             
-            // Placeholder - will show actual journey in next iteration
             VStack(alignment: .leading, spacing: 12) {
-                Text("Your Personalized Adventure")
-                    .font(.headingMedium)
-                    .foregroundColor(.textPrimary)
-                
-                Text("A custom journey matching your interests will be generated using real NSW transport data and curated stops.")
-                    .font(.bodyMedium)
-                    .foregroundColor(.textSecondary)
-                    .lineSpacing(4)
+                HStack {
+                    Label("\(generatedJourney.stops.count) stops", systemImage: "mappin.circle.fill")
+                        .font(.bodyMedium)
+                        .foregroundColor(.textPrimary)
+                    Spacer()
+                }
                 
                 HStack {
-                    Label("3-4 hours", systemImage: "clock")
-                    Label("5 stops", systemImage: "mappin.circle")
-                    Label("12 km", systemImage: "location")
+                    Label(String(format: "%.1f km total", generatedJourney.estimatedDistance), systemImage: "location.fill")
+                        .font(.bodyMedium)
+                        .foregroundColor(.textPrimary)
+                    Spacer()
                 }
-                .font(.caption)
-                .foregroundColor(.textSecondary)
+                
+                HStack {
+                    Label("\(generatedJourney.estimatedTotalTime / 60) hours", systemImage: "clock.fill")
+                        .font(.bodyMedium)
+                        .foregroundColor(.textPrimary)
+                    Spacer()
+                }
             }
             .padding()
             .background(Color.SurfaceWhite)
@@ -444,8 +489,42 @@ struct GeneratedTripResultsView: View {
         }
     }
     
+    private var stopsPreviewSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Your Stops")
+                .font(.headingLarge)
+                .foregroundColor(.textPrimary)
+                .padding(.horizontal)
+            
+            ForEach(Array(generatedJourney.stops.prefix(5)), id: \.id) { stop in
+                StopPreviewCard(stop: stop)
+                    .padding(.horizontal)
+            }
+            
+            if generatedJourney.stops.count > 5 {
+                Text("+ \(generatedJourney.stops.count - 5) more stops")
+                    .font(.bodyMedium)
+                    .foregroundColor(.textSecondary)
+                    .padding(.horizontal)
+            }
+        }
+    }
+    
     private var actionButtons: some View {
         VStack(spacing: 12) {
+            NavigationLink(destination: TripMapView(journey: generatedJourney)) {
+                HStack {
+                    Image(systemName: "map.fill")
+                    Text("View on Map")
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.primaryTeal)
+                .foregroundColor(.white)
+                .cornerRadius(12)
+                .font(.headingSmall)
+            }
+            
             PrimaryButton("Start Journey") {
                 // Will connect to actual journey start
                 dismiss()
@@ -456,6 +535,58 @@ struct GeneratedTripResultsView: View {
             }
         }
         .padding(.horizontal)
+    }
+}
+
+// MARK: - Stop Preview Card
+struct StopPreviewCard: View {
+    let stop: Stop
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(Color(stop.type.colorName).opacity(0.15))
+                    .frame(width: 50, height: 50)
+                
+                Image(systemName: stop.type.icon)
+                    .foregroundColor(Color(stop.type.colorName))
+            }
+            
+            // Details
+            VStack(alignment: .leading, spacing: 4) {
+                Text(stop.name)
+                    .font(.headingSmall)
+                    .foregroundColor(.textPrimary)
+                
+                Text(stop.description)
+                    .font(.caption)
+                    .foregroundColor(.textSecondary)
+                    .lineLimit(2)
+                
+                if let rating = stop.rating {
+                    HStack(spacing: 4) {
+                        Image(systemName: "star.fill")
+                            .font(.caption)
+                            .foregroundColor(.sunsetOrange)
+                        Text(String(format: "%.1f", rating))
+                            .font(.caption)
+                            .foregroundColor(.textSecondary)
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            // Duration
+            Text(stop.durationString)
+                .font(.caption)
+                .foregroundColor(.textSecondary)
+        }
+        .padding()
+        .background(Color.SurfaceWhite)
+        .cornerRadius(12)
     }
 }
 

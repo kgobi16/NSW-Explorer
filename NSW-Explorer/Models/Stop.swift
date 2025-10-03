@@ -41,7 +41,7 @@ struct Stop: Identifiable, Codable, Hashable {
     
     /// Order of this stop in the journey (0-based index)
     /// First stop is 0, second is 1, etc.
-    let order: Int
+    var order: Int
     
     /// Optional notes or tips for this stop
     /// Example: "Best views in the morning", "Bring swimmers"
@@ -52,6 +52,26 @@ struct Stop: Identifiable, Codable, Hashable {
     
     /// Whether user has checked in at this stop
     var isCompleted: Bool
+    
+    /// Interest category this stop belongs to
+    var category: String?
+    
+    /// Google Places rating (0-5)
+    var rating: Double?
+    
+    /// Google Place ID for fetching additional details
+    var placeId: String?
+    
+    /// Check-in status
+    var isCheckedIn: Bool
+    
+    /// Time of check-in
+    var checkInTime: Date?
+    
+    /// Estimated duration in minutes
+    var estimatedDuration: Int {
+        estimatedStayDuration
+    }
     
     // MARK: - Computed Properties
     
@@ -84,11 +104,16 @@ struct Stop: Identifiable, Codable, Hashable {
         latitude: Double,
         longitude: Double,
         type: StopType,
-        estimatedStayDuration: Int,
+        estimatedStayDuration: Int = 60,
         order: Int,
         notes: String? = nil,
         photoURL: String? = nil,
-        isCompleted: Bool = false
+        isCompleted: Bool = false,
+        category: String? = nil,
+        rating: Double? = nil,
+        placeId: String? = nil,
+        isCheckedIn: Bool = false,
+        checkInTime: Date? = nil
     ) {
         self.id = id
         self.name = name
@@ -101,6 +126,11 @@ struct Stop: Identifiable, Codable, Hashable {
         self.notes = notes
         self.photoURL = photoURL
         self.isCompleted = isCompleted
+        self.category = category
+        self.rating = rating
+        self.placeId = placeId
+        self.isCheckedIn = isCheckedIn
+        self.checkInTime = checkInTime
     }
 }
 
@@ -117,6 +147,12 @@ enum StopType: String, Codable, CaseIterable {
     case food = "Food"
     case viewpoint = "Viewpoint"
     case beach = "Beach"
+    case museum = "Museum"
+    case nature = "Nature"
+    case landmark = "Landmark"
+    case entertainment = "Entertainment"
+    case shopping = "Shopping"
+    case restaurant = "Restaurant"
     
     /// SF Symbol icon for this stop type
     var icon: String {
@@ -130,6 +166,12 @@ enum StopType: String, Codable, CaseIterable {
         case .food: return "fork.knife"
         case .viewpoint: return "mountain.2"
         case .beach: return "beach.umbrella"
+        case .museum: return "building.columns"
+        case .nature: return "leaf"
+        case .landmark: return "mappin.and.ellipse"
+        case .entertainment: return "theatermasks"
+        case .shopping: return "cart"
+        case .restaurant: return "fork.knife"
         }
     }
     
@@ -145,6 +187,12 @@ enum StopType: String, Codable, CaseIterable {
         case .food: return "FoodRed"
         case .viewpoint: return "NatureGreen"
         case .beach: return "BeachBlue"
+        case .museum: return "MeseumPurple"
+        case .nature: return "NatureGreen"
+        case .landmark: return "HistoryBrown"
+        case .entertainment: return "EntertainmentPink"
+        case .shopping: return "SunsetOrange"
+        case .restaurant: return "FoodRed"
         }
     }
 }
