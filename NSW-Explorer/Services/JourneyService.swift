@@ -1,3 +1,9 @@
+//
+//  JourneyService.swift
+//  NSW-Explorer
+//
+//  Created by Tlaitirang Rathete on 3/10/2025.
+
 import Foundation
 
 /// Service for converting between different journey types and managing active journeys
