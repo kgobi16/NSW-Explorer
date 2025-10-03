@@ -116,6 +116,7 @@ enum StopType: String, Codable, CaseIterable {
     case attraction = "Attraction"
     case food = "Food"
     case viewpoint = "Viewpoint"
+    case beach = "Beach"
     
     /// SF Symbol icon for this stop type
     var icon: String {
@@ -128,6 +129,7 @@ enum StopType: String, Codable, CaseIterable {
         case .attraction: return "star"
         case .food: return "fork.knife"
         case .viewpoint: return "mountain.2"
+        case .beach: return "beach.umbrella"
         }
     }
     
@@ -142,6 +144,7 @@ enum StopType: String, Codable, CaseIterable {
         case .attraction: return "DeepPurple"
         case .food: return "FoodRed"
         case .viewpoint: return "NatureGreen"
+        case .beach: return "BeachBlue"
         }
     }
 }

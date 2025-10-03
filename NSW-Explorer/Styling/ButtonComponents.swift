@@ -48,10 +48,10 @@ struct PrimaryButton: View {
             .foregroundColor(.white)
             .frame(maxWidth: .infinity) // Full width button
             .padding(.vertical, 16)
-            .background(Color.primaryTeal)
+            .background(Color.PrimaryTeal)
             .cornerRadius(14)
             // Add shadow for depth and tactile feel
-            .shadow(color: Color.primaryTeal.opacity(0.3), radius: 8, x: 0, y: 4)
+            .shadow(color: Color.PrimaryTeal.opacity(0.3), radius: 8, x: 0, y: 4)
         }
         // Scale animation on tap for feedback
         .buttonStyle(ScaleButtonStyle())
@@ -90,15 +90,15 @@ struct SecondaryButton: View {
                 Text(title)
                     .font(.buttonMedium)
             }
-            .foregroundColor(.primaryTeal)
+            .foregroundColor(.PrimaryTeal)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(Color.primaryTeal.opacity(0.1)) // Light tint background
+            .background(Color.PrimaryTeal.opacity(0.1)) // Light tint background
             .cornerRadius(12)
             // Subtle border for definition
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.primaryTeal.opacity(0.3), lineWidth: 1)
+                    .stroke(Color.PrimaryTeal.opacity(0.3), lineWidth: 1)
             )
         }
         .buttonStyle(ScaleButtonStyle())

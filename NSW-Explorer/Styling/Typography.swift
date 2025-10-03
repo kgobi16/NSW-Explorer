@@ -56,7 +56,7 @@ extension View {
        func displayMediumStyle() -> some View {
            self
                .font(Font.displaymedium)
-               .foregroundColor(.textPrimary)
+               .foregroundColor(.TextPrimary)
                .lineLimit(2)
                .minimumScaleFactor(0.9)
        }
@@ -68,7 +68,7 @@ extension View {
        func headingLargeStyle() -> some View {
            self
                .font(.headingLarge)
-               .foregroundColor(.textPrimary)
+               .foregroundColor(.TextPrimary)
                .lineLimit(3)
        }
        
@@ -76,7 +76,7 @@ extension View {
        func headingMediumStyle() -> some View {
            self
                .font(.headingMedium)
-               .foregroundColor(.textPrimary)
+               .foregroundColor(.TextPrimary)
                .lineLimit(2)
        }
        
@@ -84,7 +84,7 @@ extension View {
        func headingSmallStyle() -> some View {
            self
                .font(.headingSmall)
-               .foregroundColor(.textPrimary)
+               .foregroundColor(.TextPrimary)
                .lineLimit(1)
        }
        
@@ -95,7 +95,7 @@ extension View {
        func bodyLargeStyle() -> some View {
            self
                .font(.bodyLarge)
-               .foregroundColor(.textPrimary)
+               .foregroundColor(.TextPrimary)
                .lineSpacing(4) // Extra spacing for readability
        }
        
@@ -103,7 +103,7 @@ extension View {
        func bodyMediumStyle() -> some View {
            self
                .font(.bodyMedium)
-               .foregroundColor(.textSecondary)
+               .foregroundColor(.TextSecondary)
                .lineSpacing(2)
        }
        
@@ -111,7 +111,7 @@ extension View {
        func bodySmallStyle() -> some View {
            self
                .font(.bodySmall)
-               .foregroundColor(.textSecondary)
+               .foregroundColor(.TextSecondary)
        }
        
        // MARK: - Caption Modifiers
@@ -121,7 +121,7 @@ extension View {
        func captionStyle() -> some View {
            self
                .font(.caption)
-               .foregroundColor(.textSecondary)
+               .foregroundColor(.TextSecondary)
                .lineLimit(1)
        }
        
@@ -129,7 +129,7 @@ extension View {
        func captionSmallStyle() -> some View {
            self
                .font(.captionSmall)
-               .foregroundColor(.textSecondary)
+               .foregroundColor(.TextSecondary)
                .lineLimit(1)
        }
    }
@@ -197,21 +197,21 @@ extension View {
                            .foregroundColor(.white)
                            .padding(.horizontal, 32)
                            .padding(.vertical, 14)
-                           .background(Color.primaryTeal)
+                           .background(Color.PrimaryTeal)
                            .cornerRadius(12)
                        
                        Text("View Details")
                            .font(.buttonMedium)
-                           .foregroundColor(.primaryTeal)
+                           .foregroundColor(.PrimaryTeal)
                            .padding(.horizontal, 24)
                            .padding(.vertical, 10)
-                           .background(Color.primaryTeal.opacity(0.1))
+                           .background(Color.PrimaryTeal.opacity(0.1))
                            .cornerRadius(10)
                    }
                }
                .padding()
            }
-           .background(Color.backgroundGray)
+           .background(Color.BackgroundGray)
        }
    }
 

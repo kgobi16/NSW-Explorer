@@ -113,7 +113,7 @@ struct ColorSwatch: View {
             
             Text(name)
                 .font(.headline)
-                .foregroundColor(.textPrimary)
+                .foregroundColor(.TextPrimary)
             
             Spacer()
         }

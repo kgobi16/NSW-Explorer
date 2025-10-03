@@ -4,92 +4,128 @@
 //
 //  Created by Tlaitirang Rathete on 1/10/2025.
 //
+//  User's personal travel log showing saved and completed journeys
+//  Features: Grid/list toggle, filtering, trip statistics
+//  NOW WITH REAL DATA
+//
 
 import SwiftUI
 
 struct MyTripsView: View {
+    // MARK: - State Properties
     
-    // Controls whether to display trips in grid or list layout
+    /// ViewModel managing trip data
+    @StateObject private var viewModel = MyTripsViewModel()
+    
+    /// Controls whether to display trips in grid or list layout
     @State private var isGridView: Bool = true
-    // Currently selected filter tab
-    @State private var selectedFilter: String = "All"
-    // Search query for filtering trips by name
+    
+    /// Search query for filtering trips by name
     @State private var searchText: String = ""
-    // Filter options
-    private let filters = ["All", "Saved", "Completed"]
+    
+    /// Mock active journey for demo (will use real data in Section 7)
+    @State private var activeJourney: ActiveJourney? = ActiveJourney.sample
+    
+    /// Navigate to active journey
+    @State private var navigateToActiveJourney: Bool = false
+    
+    /// Navigate to trip detail
+    @State private var selectedTrip: AnyTrip?
     
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 
+                // MARK: - Active Journey Widget
+                if let activeJourney = activeJourney {
+                    VStack(spacing: 0) {
+                        JourneyProgressWidget(
+                            activeJourney: activeJourney,
+                            onTap: {
+                                navigateToActiveJourney = true
+                            }
+                        )
+                        .padding()
+                        
+                        Divider()
+                    }
+                    .background(Color.BackgroundGray)
+                }
+                
                 // MARK: - Statistics Banner
-                // Shows user's trip statistics at the top
                 statisticsBanner
                 
                 // MARK: - Filter Tabs
                 filterTabs
                 
                 // MARK: - Trip List/Grid
-                // Main content area showing trips
                 if isGridView {
                     tripGridView
                 } else {
                     tripListView
                 }
             }
-            .background(Color.backgroundGray)
+            .background(Color.BackgroundGray)
             .navigationTitle("My Trips")
             .navigationBarTitleDisplayMode(.large)
             .searchable(text: $searchText, prompt: "Search trips")
             .toolbar {
-                // MARK: - Toolbar Items
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    // Toggle between grid and list view
                     Button(action: {
                         withAnimation {
                             isGridView.toggle()
                         }
                     }) {
                         Image(systemName: isGridView ? "list.bullet" : "square.grid.2x2")
-                            .foregroundColor(.primaryTeal)
+                            .foregroundColor(.PrimaryTeal)
                     }
+                }
+            }
+            .navigationDestination(isPresented: $navigateToActiveJourney) {
+                if let activeJourney = activeJourney {
+                    ActiveJourneyView(activeJourney: activeJourney)
+                }
+            }
+            .sheet(item: $selectedTrip) { trip in
+                TripDetailSheet(trip: trip, viewModel: viewModel)
+            }
+            .overlay {
+                if viewModel.isLoading {
+                    ProgressView()
+                        .scaleEffect(1.5)
                 }
             }
         }
     }
     
     // MARK: - Statistics Banner
-    // Shows key metrics about user's journeys
     private var statisticsBanner: some View {
         HStack(spacing: 0) {
-            // Total trips
             StatisticCard(
-                value: "12",
-                label: "Total Trips",
+                value: "\(viewModel.statistics.totalTrips)",
+                label: "Total",
                 icon: "map",
-                color: .primaryTeal
+                color: .PrimaryTeal
             )
             
             Divider()
                 .frame(height: 60)
             
-            // Completed
             StatisticCard(
-                value: "8",
+                value: "\(viewModel.statistics.completedTrips)",
                 label: "Completed",
                 icon: "checkmark.circle",
-                color: .freshGreen
+                color: .FreshGreen
             )
             
             Divider()
                 .frame(height: 60)
             
-            // Distance traveled
             StatisticCard(
-                value: "247km",
+                value: viewModel.statistics.distanceString,
                 label: "Traveled",
                 icon: "location",
-                color: .sunsetOrange
+                color: .SunsetOrange
             )
         }
         .frame(height: 100)
@@ -98,150 +134,158 @@ struct MyTripsView: View {
     }
     
     // MARK: - Filter Tabs
-    // Segmented control for filtering trips
     private var filterTabs: some View {
         HStack(spacing: 0) {
-            ForEach(filters, id: \.self) { filter in
+            ForEach(MyTripsViewModel.TripFilter.allCases, id: \.self) { filter in
                 Button(action: {
                     withAnimation {
-                        selectedFilter = filter
+                        viewModel.selectedFilter = filter
                     }
                 }) {
-                    Text(filter)
+                    Text(filter.rawValue)
                         .font(.bodyMedium)
-                        .foregroundColor(selectedFilter == filter ? .white : .primaryTeal)
+                        .foregroundColor(viewModel.selectedFilter == filter ? .white : .PrimaryTeal)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
                         .background(
-                            selectedFilter == filter ? Color.primaryTeal : Color.clear
+                            viewModel.selectedFilter == filter ? Color.PrimaryTeal : Color.clear
                         )
                 }
             }
         }
-        .background(Color.primaryTeal.opacity(0.1))
+        .background(Color.PrimaryTeal.opacity(0.1))
         .cornerRadius(12)
         .padding()
     }
     
     // MARK: - Trip Grid View
-    // Grid layout for trips - more visual, shows images prominently
     private var tripGridView: some View {
         ScrollView {
             LazyVGrid(columns: [
                 GridItem(.flexible(), spacing: 16),
                 GridItem(.flexible(), spacing: 16)
             ], spacing: 16) {
-                // Placeholder trip cards (will be replaced with real data in Section 7)
-                ForEach(0..<6) { index in
-                    TripGridCard(
-                        title: "Trip \(index + 1)",
-                        category: "Beach",
-                        date: "Dec \(index + 1)",
-                        isCompleted: index % 2 == 0
-                    )
+                ForEach(filteredTrips) { trip in
+                    TripGridCard(trip: trip)
+                        .onTapGesture {
+                            selectedTrip = trip
+                        }
                 }
             }
             .padding()
+            
+            if filteredTrips.isEmpty {
+                emptyState
+            }
         }
     }
     
     // MARK: - Trip List View
-    // List layout for trips - more compact, shows more information
     private var tripListView: some View {
         ScrollView {
             LazyVStack(spacing: 12) {
-                // Placeholder trip rows (will be replaced with real data in Section 7)
-                ForEach(0..<8) { index in
-                    TripListRow(
-                        title: "Journey Number \(index + 1)",
-                        category: "Beach",
-                        date: "December \(index + 1), 2024",
-                        distance: "\(index + 5)km",
-                        isCompleted: index % 2 == 0
-                    )
+                ForEach(filteredTrips) { trip in
+                    TripListRow(trip: trip)
+                        .onTapGesture {
+                            selectedTrip = trip
+                        }
                 }
             }
             .padding()
+            
+            if filteredTrips.isEmpty {
+                emptyState
+            }
         }
     }
-}
-
-// MARK: - Statistic Card Component
-// Individual stat display in the banner
-struct StatisticCard: View {
-    let value: String
-    let label: String
-    let icon: String
-    let color: Color
     
-    var body: some View {
-        VStack(spacing: 8) {
-            // Icon
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(color)
+    // MARK: - Empty State
+    private var emptyState: some View {
+        VStack(spacing: 16) {
+            Image(systemName: viewModel.selectedFilter == .completed ? "checkmark.circle" : "bookmark")
+                .font(.system(size: 60))
+                .foregroundColor(.TextSecondary.opacity(0.5))
             
-            // Value (large number)
-            Text(value)
-                .font(.headingLarge)
-                .foregroundColor(.textPrimary)
+            Text("No \(viewModel.selectedFilter.rawValue.lowercased()) trips")
+                .font(.headingMedium)
+                .foregroundColor(.TextPrimary)
             
-            // Label (description)
-            Text(label)
-                .font(.captionSmall)
-                .foregroundColor(.textSecondary)
+            Text(emptyStateMessage)
+                .font(.bodyMedium)
+                .foregroundColor(.TextSecondary)
+                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
+        .padding(.vertical, 60)
+    }
+    
+    private var emptyStateMessage: String {
+        switch viewModel.selectedFilter {
+        case .all:
+            return "Start exploring to create your first trip"
+        case .completed:
+            return "Complete a journey to see it here"
+        case .saved:
+            return "Save journeys to view them later"
+        }
+    }
+    
+    private var filteredTrips: [AnyTrip] {
+        let trips = viewModel.filteredTrips
+        
+        if searchText.isEmpty {
+            return trips
+        }
+        
+        return trips.filter { trip in
+            trip.name.localizedCaseInsensitiveContains(searchText)
+        }
     }
 }
 
 // MARK: - Trip Grid Card Component
-// Card view for grid layout - emphasizes visuals
 struct TripGridCard: View {
-    let title: String
-    let category: String
-    let date: String
-    let isCompleted: Bool
+    let trip: AnyTrip
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Image placeholder
+            // Status indicator
             ZStack(alignment: .topTrailing) {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.primaryTeal.opacity(0.3))
+                    .fill(trip.isCompleted ? Color.FreshGreen.opacity(0.3) : Color.PrimaryTeal.opacity(0.3))
                     .frame(height: 120)
                     .overlay(
-                        Image(systemName: "photo")
+                        Image(systemName: trip.isCompleted ? "checkmark.circle.fill" : "bookmark.fill")
                             .font(.largeTitle)
-                            .foregroundColor(.primaryTeal.opacity(0.5))
+                            .foregroundColor(trip.isCompleted ? .FreshGreen : .PrimaryTeal)
                     )
                 
                 // Completion badge
-                if isCompleted {
-                    Image(systemName: "checkmark.circle.fill")
+                if trip.isCompleted {
+                    Image(systemName: "checkmark.seal.fill")
                         .font(.title3)
-                        .foregroundColor(.freshGreen)
+                        .foregroundColor(.FreshGreen)
                         .padding(8)
                 }
             }
             
             // Info section
             VStack(alignment: .leading, spacing: 6) {
-                Text(title)
+                Text(trip.name)
                     .font(.headingSmall)
-                    .foregroundColor(.textPrimary)
-                    .lineLimit(1)
+                    .foregroundColor(.TextPrimary)
+                    .lineLimit(2)
                 
                 HStack {
-                    Label(category, systemImage: "tag")
-                        .font(.captionSmall)
-                        .foregroundColor(.textSecondary)
+                    Label("\(trip.stopCount) stops", systemImage: "mappin.circle")
+                        .font(.caption)
+                        .foregroundColor(.TextSecondary)
                     
                     Spacer()
                     
-                    Text(date)
-                        .font(.captionSmall)
-                        .foregroundColor(.textSecondary)
+                    Text(trip.isCompleted ? "Completed" : "Saved")
+                        .font(.caption)
+                        .foregroundColor(trip.isCompleted ? .FreshGreen : .PrimaryTeal)
                 }
             }
             .padding(12)
@@ -253,75 +297,82 @@ struct TripGridCard: View {
 }
 
 // MARK: - Trip List Row Component
-// Row view for list layout - shows more details
 struct TripListRow: View {
-    let title: String
-    let category: String
-    let date: String
-    let distance: String
-    let isCompleted: Bool
+    let trip: AnyTrip
     
     var body: some View {
         HStack(spacing: 12) {
-            // Thumbnail image
+            // Status icon
             ZStack {
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.deepPurple.opacity(0.3))
-                    .frame(width: 80, height: 80)
-                    .overlay(
-                        Image(systemName: "map")
-                            .font(.title2)
-                            .foregroundColor(.deepPurple.opacity(0.5))
-                    )
+                    .fill(trip.isCompleted ? Color.FreshGreen.opacity(0.2) : Color.PrimaryTeal.opacity(0.2))
+                    .frame(width: 60, height: 60)
                 
-                // Completion badge
-                if isCompleted {
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Spacer()
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.body)
-                                .foregroundColor(.freshGreen)
-                                .padding(4)
-                        }
-                    }
-                }
+                Image(systemName: trip.isCompleted ? "checkmark.circle.fill" : "bookmark.fill")
+                    .font(.title2)
+                    .foregroundColor(trip.isCompleted ? .FreshGreen : .PrimaryTeal)
             }
             
             // Info section
             VStack(alignment: .leading, spacing: 6) {
-                Text(title)
+                Text(trip.name)
                     .font(.headingSmall)
-                    .foregroundColor(.textPrimary)
+                    .foregroundColor(.TextPrimary)
                     .lineLimit(2)
                 
                 HStack(spacing: 12) {
-                    Label(category, systemImage: "tag")
+                    Label("\(trip.stopCount) stops", systemImage: "mappin.circle")
                         .font(.caption)
-                        .foregroundColor(.textSecondary)
-                    
-                    Label(distance, systemImage: "location")
-                        .font(.caption)
-                        .foregroundColor(.textSecondary)
+                        .foregroundColor(.TextSecondary)
                 }
                 
-                Text(date)
+                Text(formattedDate(trip.date))
                     .font(.captionSmall)
-                    .foregroundColor(.textSecondary)
+                    .foregroundColor(.TextSecondary)
             }
             
             Spacer()
             
-            // Chevron indicator
             Image(systemName: "chevron.right")
                 .font(.body)
-                .foregroundColor(.textSecondary)
+                .foregroundColor(.TextSecondary)
         }
         .padding(12)
         .background(Color.SurfaceWhite)
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+    }
+    
+    private func formattedDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Statistic Card Component
+struct StatisticCard: View {
+    let value: String
+    let label: String
+    let icon: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(color)
+            
+            Text(value)
+                .font(.bodyMedium)
+                .fontWeight(.semibold)
+                .foregroundColor(.TextPrimary)
+            
+            Text(label)
+                .font(.caption)
+                .foregroundColor(.TextSecondary)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
