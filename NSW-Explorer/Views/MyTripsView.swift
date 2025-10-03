@@ -14,8 +14,11 @@ import SwiftUI
 struct MyTripsView: View {
     // MARK: - State Properties
     
-    /// ViewModel managing trip data
-    @StateObject private var viewModel = MyTripsViewModel()
+    /// Real trip storage service
+    @StateObject private var tripStorage = TripStorageService.shared
+    
+    /// Journey service for managing active journeys
+    @StateObject private var journeyService = JourneyService.shared
     
     /// Controls whether to display trips in grid or list layout
     @State private var isGridView: Bool = true
@@ -23,34 +26,29 @@ struct MyTripsView: View {
     /// Search query for filtering trips by name
     @State private var searchText: String = ""
     
-    /// Mock active journey for demo (will use real data in Section 7)
-    @State private var activeJourney: ActiveJourney? = ActiveJourney.sample
-    
-    /// Navigate to active journey
-    @State private var navigateToActiveJourney: Bool = false
+    /// Selected filter for displaying different trip types
+    @State private var selectedFilter: TripFilter = .all
     
     /// Navigate to trip detail
-    @State private var selectedTrip: AnyTrip?
+    @State private var selectedTrip: GeneratedJourney?
+    
+    /// Show favorites filter
+    @State private var showFavoritesOnly: Bool = false
+    
+    /// Navigate to active journey
+    @State private var navigateToActiveJourney = false
+    @State private var activeJourney: ActiveJourney?
+    
+    enum TripFilter: String, CaseIterable {
+        case all = "All"
+        case saved = "Saved"
+        case completed = "Completed"
+        case favorites = "Favorites"
+    }
     
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                
-                // MARK: - Active Journey Widget
-                if let activeJourney = activeJourney {
-                    VStack(spacing: 0) {
-                        JourneyProgressWidget(
-                            activeJourney: activeJourney,
-                            onTap: {
-                                navigateToActiveJourney = true
-                            }
-                        )
-                        .padding()
-                        
-                        Divider()
-                    }
-                    .background(Color.BackgroundGray)
-                }
                 
                 // MARK: - Statistics Banner
                 statisticsBanner
@@ -81,18 +79,14 @@ struct MyTripsView: View {
                     }
                 }
             }
+            .sheet(item: $selectedTrip) { trip in
+                NavigationStack {
+                    TripMapView(journey: trip)
+                }
+            }
             .navigationDestination(isPresented: $navigateToActiveJourney) {
                 if let activeJourney = activeJourney {
                     ActiveJourneyView(activeJourney: activeJourney)
-                }
-            }
-            .sheet(item: $selectedTrip) { trip in
-                TripDetailSheet(trip: trip, viewModel: viewModel)
-            }
-            .overlay {
-                if viewModel.isLoading {
-                    ProgressView()
-                        .scaleEffect(1.5)
                 }
             }
         }
@@ -102,7 +96,7 @@ struct MyTripsView: View {
     private var statisticsBanner: some View {
         HStack(spacing: 0) {
             StatisticCard(
-                value: "\(viewModel.statistics.totalTrips)",
+                value: "\(tripStorage.savedTrips.count + tripStorage.completedTrips.count)",
                 label: "Total",
                 icon: "map",
                 color: .PrimaryTeal
@@ -112,7 +106,7 @@ struct MyTripsView: View {
                 .frame(height: 60)
             
             StatisticCard(
-                value: "\(viewModel.statistics.completedTrips)",
+                value: "\(tripStorage.totalTripsCompleted)",
                 label: "Completed",
                 icon: "checkmark.circle",
                 color: .FreshGreen
@@ -122,7 +116,7 @@ struct MyTripsView: View {
                 .frame(height: 60)
             
             StatisticCard(
-                value: viewModel.statistics.distanceString,
+                value: String(format: "%.1f km", tripStorage.totalDistanceTraveled),
                 label: "Traveled",
                 icon: "location",
                 color: .SunsetOrange
@@ -136,19 +130,19 @@ struct MyTripsView: View {
     // MARK: - Filter Tabs
     private var filterTabs: some View {
         HStack(spacing: 0) {
-            ForEach(MyTripsViewModel.TripFilter.allCases, id: \.self) { filter in
+            ForEach(TripFilter.allCases, id: \.self) { filter in
                 Button(action: {
                     withAnimation {
-                        viewModel.selectedFilter = filter
+                        selectedFilter = filter
                     }
                 }) {
                     Text(filter.rawValue)
                         .font(.bodyMedium)
-                        .foregroundColor(viewModel.selectedFilter == filter ? .white : .PrimaryTeal)
+                        .foregroundColor(selectedFilter == filter ? .white : .PrimaryTeal)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
                         .background(
-                            viewModel.selectedFilter == filter ? Color.PrimaryTeal : Color.clear
+                            selectedFilter == filter ? Color.PrimaryTeal : Color.clear
                         )
                 }
             }
@@ -166,10 +160,13 @@ struct MyTripsView: View {
                 GridItem(.flexible(), spacing: 16)
             ], spacing: 16) {
                 ForEach(filteredTrips) { trip in
-                    TripGridCard(trip: trip)
-                        .onTapGesture {
-                            selectedTrip = trip
-                        }
+                    TripGridCard(
+                        trip: trip,
+                        onTap: { selectedTrip = trip },
+                        onFavorite: { toggleFavorite(trip) },
+                        onDelete: { deleteTrip(trip) },
+                        isFavorited: tripStorage.isFavorited(trip.id)
+                    )
                 }
             }
             .padding()
@@ -185,10 +182,13 @@ struct MyTripsView: View {
         ScrollView {
             LazyVStack(spacing: 12) {
                 ForEach(filteredTrips) { trip in
-                    TripListRow(trip: trip)
-                        .onTapGesture {
-                            selectedTrip = trip
-                        }
+                    TripListRow(
+                        trip: trip,
+                        onTap: { selectedTrip = trip },
+                        onFavorite: { toggleFavorite(trip) },
+                        onDelete: { deleteTrip(trip) },
+                        isFavorited: tripStorage.isFavorited(trip.id)
+                    )
                 }
             }
             .padding()
@@ -202,11 +202,11 @@ struct MyTripsView: View {
     // MARK: - Empty State
     private var emptyState: some View {
         VStack(spacing: 16) {
-            Image(systemName: viewModel.selectedFilter == .completed ? "checkmark.circle" : "bookmark")
+            Image(systemName: selectedFilter == .completed ? "checkmark.circle" : "bookmark")
                 .font(.system(size: 60))
                 .foregroundColor(.TextSecondary.opacity(0.5))
             
-            Text("No \(viewModel.selectedFilter.rawValue.lowercased()) trips")
+            Text("No \(selectedFilter.rawValue.lowercased()) trips")
                 .font(.headingMedium)
                 .foregroundColor(.TextPrimary)
             
@@ -220,127 +220,229 @@ struct MyTripsView: View {
     }
     
     private var emptyStateMessage: String {
-        switch viewModel.selectedFilter {
+        switch selectedFilter {
         case .all:
             return "Start exploring to create your first trip"
         case .completed:
             return "Complete a journey to see it here"
         case .saved:
             return "Save journeys to view them later"
+        case .favorites:
+            return "Favorite trips to see them here"
         }
     }
     
-    private var filteredTrips: [AnyTrip] {
-        let trips = viewModel.filteredTrips
+    // MARK: - Helper Methods
+    
+    private func toggleFavorite(_ trip: GeneratedJourney) {
+        if tripStorage.isFavorited(trip.id) {
+            tripStorage.removeFromFavorites(trip.id)
+        } else {
+            tripStorage.addToFavorites(trip.id)
+        }
+    }
+    
+    private func deleteTrip(_ trip: GeneratedJourney) {
+        tripStorage.deleteTrip(withId: trip.id)
+    }
+    
+    private var filteredTrips: [GeneratedJourney] {
+        let trips: [GeneratedJourney]
+        
+        switch selectedFilter {
+        case .all:
+            trips = tripStorage.savedTrips + tripStorage.completedTrips
+        case .saved:
+            trips = tripStorage.savedTrips
+        case .completed:
+            trips = tripStorage.completedTrips
+        case .favorites:
+            trips = tripStorage.getFavoriteTrips()
+        }
         
         if searchText.isEmpty {
             return trips
         }
         
         return trips.filter { trip in
-            trip.name.localizedCaseInsensitiveContains(searchText)
+            trip.title.localizedCaseInsensitiveContains(searchText)
         }
     }
 }
 
 // MARK: - Trip Grid Card Component
 struct TripGridCard: View {
-    let trip: AnyTrip
+    let trip: GeneratedJourney
+    let onTap: () -> Void
+    let onFavorite: () -> Void
+    let onDelete: () -> Void
+    let isFavorited: Bool
+    
+    @State private var showingDeleteAlert = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Status indicator
-            ZStack(alignment: .topTrailing) {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(trip.isCompleted ? Color.FreshGreen.opacity(0.3) : Color.PrimaryTeal.opacity(0.3))
-                    .frame(height: 120)
-                    .overlay(
-                        Image(systemName: trip.isCompleted ? "checkmark.circle.fill" : "bookmark.fill")
-                            .font(.largeTitle)
-                            .foregroundColor(trip.isCompleted ? .FreshGreen : .PrimaryTeal)
-                    )
-                
-                // Completion badge
-                if trip.isCompleted {
-                    Image(systemName: "checkmark.seal.fill")
-                        .font(.title3)
-                        .foregroundColor(.FreshGreen)
-                        .padding(8)
-                }
-            }
-            
-            // Info section
-            VStack(alignment: .leading, spacing: 6) {
-                Text(trip.name)
-                    .font(.headingSmall)
-                    .foregroundColor(.TextPrimary)
-                    .lineLimit(2)
-                
-                HStack {
-                    Label("\(trip.stopCount) stops", systemImage: "mappin.circle")
-                        .font(.caption)
-                        .foregroundColor(.TextSecondary)
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 0) {
+                // Status indicator with favorite and delete buttons
+                ZStack(alignment: .topTrailing) {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(isCompleted ? Color.FreshGreen.opacity(0.3) : Color.PrimaryTeal.opacity(0.3))
+                        .frame(height: 120)
+                        .overlay(
+                            Image(systemName: isCompleted ? "checkmark.circle.fill" : "bookmark.fill")
+                                .font(.largeTitle)
+                                .foregroundColor(isCompleted ? .FreshGreen : .PrimaryTeal)
+                        )
                     
-                    Spacer()
-                    
-                    Text(trip.isCompleted ? "Completed" : "Saved")
-                        .font(.caption)
-                        .foregroundColor(trip.isCompleted ? .FreshGreen : .PrimaryTeal)
+                    // Action buttons
+                    HStack(spacing: 8) {
+                        Button(action: onFavorite) {
+                            Image(systemName: isFavorited ? "heart.fill" : "heart")
+                                .font(.title3)
+                                .foregroundColor(isFavorited ? .red : .white)
+                                .background(Color.black.opacity(0.3))
+                                .clipShape(Circle())
+                                .frame(width: 32, height: 32)
+                        }
+                        
+                        Button(action: { showingDeleteAlert = true }) {
+                            Image(systemName: "trash")
+                                .font(.title3)
+                                .foregroundColor(.white)
+                                .background(Color.black.opacity(0.3))
+                                .clipShape(Circle())
+                                .frame(width: 32, height: 32)
+                        }
+                    }
+                    .padding(8)
                 }
+                
+                // Info section
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(trip.title)
+                        .font(.headingSmall)
+                        .foregroundColor(.TextPrimary)
+                        .lineLimit(2)
+                    
+                    HStack {
+                        Label("\(trip.stops.count) stops", systemImage: "mappin.circle")
+                            .font(.caption)
+                            .foregroundColor(.TextSecondary)
+                        
+                        Spacer()
+                        
+                        Text(isCompleted ? "Completed" : "Saved")
+                            .font(.caption)
+                            .foregroundColor(isCompleted ? .FreshGreen : .PrimaryTeal)
+                    }
+                }
+                .padding(12)
             }
-            .padding(12)
+            .background(Color.SurfaceWhite)
+            .cornerRadius(12)
+            .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 3)
         }
-        .background(Color.SurfaceWhite)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 3)
+        .buttonStyle(PlainButtonStyle())
+        .alert("Delete Trip", isPresented: $showingDeleteAlert) {
+            Button("Delete", role: .destructive) {
+                onDelete()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Are you sure you want to delete this trip? This action cannot be undone.")
+        }
+    }
+    
+    private var isCompleted: Bool {
+        trip.stops.allSatisfy { $0.isCheckedIn }
     }
 }
 
 // MARK: - Trip List Row Component
 struct TripListRow: View {
-    let trip: AnyTrip
+    let trip: GeneratedJourney
+    let onTap: () -> Void
+    let onFavorite: () -> Void
+    let onDelete: () -> Void
+    let isFavorited: Bool
+    
+    @State private var showingDeleteAlert = false
     
     var body: some View {
-        HStack(spacing: 12) {
-            // Status icon
-            ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(trip.isCompleted ? Color.FreshGreen.opacity(0.2) : Color.PrimaryTeal.opacity(0.2))
-                    .frame(width: 60, height: 60)
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                // Status icon
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(isCompleted ? Color.FreshGreen.opacity(0.2) : Color.PrimaryTeal.opacity(0.2))
+                        .frame(width: 60, height: 60)
+                    
+                    Image(systemName: isCompleted ? "checkmark.circle.fill" : "bookmark.fill")
+                        .font(.title2)
+                        .foregroundColor(isCompleted ? .FreshGreen : .PrimaryTeal)
+                }
                 
-                Image(systemName: trip.isCompleted ? "checkmark.circle.fill" : "bookmark.fill")
-                    .font(.title2)
-                    .foregroundColor(trip.isCompleted ? .FreshGreen : .PrimaryTeal)
-            }
-            
-            // Info section
-            VStack(alignment: .leading, spacing: 6) {
-                Text(trip.name)
-                    .font(.headingSmall)
-                    .foregroundColor(.TextPrimary)
-                    .lineLimit(2)
-                
-                HStack(spacing: 12) {
-                    Label("\(trip.stopCount) stops", systemImage: "mappin.circle")
-                        .font(.caption)
+                // Info section
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(trip.title)
+                        .font(.headingSmall)
+                        .foregroundColor(.TextPrimary)
+                        .lineLimit(2)
+                    
+                    HStack(spacing: 12) {
+                        Label("\(trip.stops.count) stops", systemImage: "mappin.circle")
+                            .font(.caption)
+                            .foregroundColor(.TextSecondary)
+                        
+                        Label(trip.distanceString, systemImage: "location")
+                            .font(.caption)
+                            .foregroundColor(.TextSecondary)
+                    }
+                    
+                    Text(formattedDate(trip.generatedDate))
+                        .font(.captionSmall)
                         .foregroundColor(.TextSecondary)
                 }
                 
-                Text(formattedDate(trip.date))
-                    .font(.captionSmall)
-                    .foregroundColor(.TextSecondary)
+                Spacer()
+                
+                // Action buttons
+                HStack(spacing: 8) {
+                    Button(action: onFavorite) {
+                        Image(systemName: isFavorited ? "heart.fill" : "heart")
+                            .font(.title3)
+                            .foregroundColor(isFavorited ? .red : .TextSecondary)
+                    }
+                    
+                    Button(action: { showingDeleteAlert = true }) {
+                        Image(systemName: "trash")
+                            .font(.title3)
+                            .foregroundColor(.TextSecondary)
+                    }
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.body)
+                        .foregroundColor(.TextSecondary)
+                }
             }
-            
-            Spacer()
-            
-            Image(systemName: "chevron.right")
-                .font(.body)
-                .foregroundColor(.TextSecondary)
+            .padding(12)
+            .background(Color.SurfaceWhite)
+            .cornerRadius(12)
+            .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
         }
-        .padding(12)
-        .background(Color.SurfaceWhite)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+        .buttonStyle(PlainButtonStyle())
+        .alert("Delete Trip", isPresented: $showingDeleteAlert) {
+            Button("Delete", role: .destructive) {
+                onDelete()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Are you sure you want to delete this trip? This action cannot be undone.")
+        }
+    }
+    
+    private var isCompleted: Bool {
+        trip.stops.allSatisfy { $0.isCheckedIn }
     }
     
     private func formattedDate(_ date: Date) -> String {

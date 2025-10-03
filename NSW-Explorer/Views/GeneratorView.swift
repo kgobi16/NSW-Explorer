@@ -399,6 +399,14 @@ struct GeneratedTripResultsView: View {
     let selectedInterests: [String]
     let generatedJourney: GeneratedJourney
     @State private var showFullJourney = false
+    @State private var navigateToActiveJourney = false
+    @State private var activeJourney: ActiveJourney?
+    
+    /// Trip storage service
+    @StateObject private var tripStorage = TripStorageService.shared
+    
+    /// Journey service for managing active journeys
+    @StateObject private var journeyService = JourneyService.shared
     
     var body: some View {
         NavigationStack {
@@ -420,6 +428,11 @@ struct GeneratedTripResultsView: View {
                     Button("Done") {
                         dismiss()
                     }
+                }
+            }
+            .navigationDestination(isPresented: $navigateToActiveJourney) {
+                if let activeJourney = activeJourney {
+                    ActiveJourneyView(activeJourney: activeJourney)
                 }
             }
         }
@@ -526,7 +539,16 @@ struct GeneratedTripResultsView: View {
             }
             
             PrimaryButton("Start Journey") {
-                // Will connect to actual journey start
+                // Start active journey and navigate
+                let newActiveJourney = journeyService.startJourney(from: generatedJourney)
+                activeJourney = newActiveJourney
+                tripStorage.saveGeneratedTrip(generatedJourney)
+                navigateToActiveJourney = true
+            }
+            
+            PrimaryButton("Save for Later") {
+                // Save the trip and dismiss
+                tripStorage.saveGeneratedTrip(generatedJourney)
                 dismiss()
             }
             

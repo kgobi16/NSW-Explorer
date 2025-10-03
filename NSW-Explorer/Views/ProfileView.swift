@@ -25,6 +25,9 @@ struct ProfileView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     
+                    // MARK: - Work in Progress Notice
+                    workInProgressNotice
+                    
                     // MARK: - Profile Header
                     profileHeader
                     
@@ -52,6 +55,55 @@ struct ProfileView: View {
                 Text("Are you sure you want to sign out?")
             }
         }
+    }
+    
+    // MARK: - Work in Progress Notice
+    private var workInProgressNotice: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "hammer.fill")
+                .font(.system(size: 48))
+                .foregroundColor(.sunsetOrange)
+            
+            VStack(spacing: 8) {
+                Text("🚧 Work in Progress")
+                    .font(.headingLarge)
+                    .foregroundColor(.textPrimary)
+                
+                Text("Profile Settings Coming Soon!")
+                    .font(.headingMedium)
+                    .foregroundColor(.sunsetOrange)
+                
+                Text("We're working hard to bring you comprehensive profile management features. This section will include account settings, preferences, achievements, and much more in future updates.")
+                    .font(.bodyMedium)
+                    .foregroundColor(.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+                
+                HStack(spacing: 4) {
+                    Text("Expected in:")
+                        .font(.bodySmall)
+                        .foregroundColor(.textSecondary)
+                    
+                    Text("Next Update")
+                        .font(.bodySmall)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primaryTeal)
+                }
+                .padding(.top, 4)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 32)
+        .padding(.horizontal, 24)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.SurfaceWhite)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .strokeBorder(Color.sunsetOrange.opacity(0.3), lineWidth: 2)
+                )
+        )
+        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
     }
     
     // MARK: - Profile Header

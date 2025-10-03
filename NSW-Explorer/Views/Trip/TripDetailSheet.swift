@@ -4,52 +4,41 @@
 //
 //  Created by Tlaitirang Rathete on 3/10/2025.
 //
-//  Modal sheet showing details of a completed or saved trip
-//  Displays journey info, check-ins, photos, and notes
+//  Detailed view of a trip showing stops, distance, time
+//  Allows users to start journey or toggle favorites
 //
 
 import SwiftUI
 
 struct TripDetailSheet: View {
-    // MARK: - Properties
-    
-    let trip: AnyTrip
-    @ObservedObject var viewModel: MyTripsViewModel
+    let journey: GeneratedJourney
+    let onStartJourney: () -> Void
     
     @Environment(\.dismiss) var dismiss
-    
-    @State private var showDeleteAlert: Bool = false
+    @StateObject private var tripStorage = TripStorageService.shared
+    @State private var showingActiveJourney = false
+    @State private var activeJourney: ActiveJourney?
     
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
+                    // Header with title and description
+                    headerSection
                     
-                    // MARK: - Header Card
-                    headerCard
+                    // Statistics row
+                    statisticsSection
                     
-                    // MARK: - Interests Section
-                    if !trip.interests.isEmpty {
-                        interestsSection
-                    }
+                    // Action buttons
+                    actionButtonsSection
                     
-                    // MARK: - Content Based on Type
-                    if trip.isCompleted {
-                        completedTripContent
-                    } else {
-                        savedJourneyContent
-                    }
-                    
-                    // MARK: - Stops List
+                    // Stops list
                     stopsSection
-                    
-                    // MARK: - Action Buttons
-                    actionButtons
                 }
                 .padding()
             }
             .background(Color.BackgroundGray)
-            .navigationTitle(trip.isCompleted ? "Completed Trip" : "Saved Journey")
+            .navigationTitle("Trip Details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -59,89 +48,43 @@ struct TripDetailSheet: View {
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button(action: {
-                            // Share functionality
-                            print("Share trip")
-                        }) {
-                            Label("Share", systemImage: "square.and.arrow.up")
-                        }
-                        
-                        Divider()
-                        
-                        Button(role: .destructive, action: {
-                            showDeleteAlert = true
-                        }) {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .foregroundColor(.PrimaryTeal)
+                    Button(action: toggleFavorite) {
+                        Image(systemName: isFavorited ? "heart.fill" : "heart")
+                            .foregroundColor(isFavorited ? .red : .TextSecondary)
                     }
                 }
             }
-            .alert("Delete Trip?", isPresented: $showDeleteAlert) {
-                Button("Cancel", role: .cancel) { }
-                Button("Delete", role: .destructive) {
-                    deleteTrip()
+            .navigationDestination(isPresented: $showingActiveJourney) {
+                if let activeJourney = activeJourney {
+                    ActiveJourneyView(activeJourney: activeJourney)
                 }
-            } message: {
-                Text("This action cannot be undone.")
             }
         }
     }
     
-    // MARK: - Header Card
-    private var headerCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Status badge
-            HStack {
-                Image(systemName: trip.isCompleted ? "checkmark.seal.fill" : "bookmark.fill")
-                    .font(.title3)
-                Text(trip.isCompleted ? "Completed" : "Saved")
-                    .font(.bodyMedium)
-                    .fontWeight(.semibold)
-            }
-            .foregroundColor(trip.isCompleted ? .FreshGreen : .PrimaryTeal)
-            
-            // Title
-            Text(trip.name)
-                .font(.displaymedium)
-                .foregroundColor(.TextPrimary)
-            
-            // Metadata
-            HStack(spacing: 16) {
-                Label("\(trip.stopCount) stops", systemImage: "mappin.circle")
-                    .font(.bodyMedium)
-                    .foregroundColor(.TextSecondary)
-                
-                Label(formattedDate(trip.date), systemImage: "calendar")
-                    .font(.bodyMedium)
-                    .foregroundColor(.TextSecondary)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(Color.SurfaceWhite)
-        .cornerRadius(16)
-    }
-    
-    // MARK: - Interests Section
-    private var interestsSection: some View {
+    // MARK: - Header Section
+    private var headerSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Interests")
-                .font(.headingMedium)
+            Text(journey.title)
+                .font(.headingLarge)
                 .foregroundColor(.TextPrimary)
+                .multilineTextAlignment(.leading)
             
-            FlowLayout(spacing: 8) {
-                ForEach(trip.interests, id: \.self) { interest in
+            Text(journey.description)
+                .font(.bodyMedium)
+                .foregroundColor(.TextSecondary)
+                .multilineTextAlignment(.leading)
+            
+            // Trip badges
+            HStack {
+                ForEach(journey.interests, id: \.self) { interest in
                     Text(interest)
-                        .font(.bodyMedium)
-                        .foregroundColor(.PrimaryTeal)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
                         .background(Color.PrimaryTeal.opacity(0.1))
-                        .cornerRadius(12)
+                        .foregroundColor(.PrimaryTeal)
+                        .cornerRadius(8)
                 }
             }
         }
@@ -151,255 +94,173 @@ struct TripDetailSheet: View {
         .cornerRadius(16)
     }
     
-    // MARK: - Completed Trip Content
-    @ViewBuilder
-    private var completedTripContent: some View {
-        if case .completed(let completedTrip) = trip {
-            // Statistics
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Trip Statistics")
-                    .font(.headingMedium)
-                    .foregroundColor(.TextPrimary)
-                
-                LazyVGrid(columns: [
-                    GridItem(.flexible()),
-                    GridItem(.flexible())
-                ], spacing: 12) {
-                    StatCard(
-                        icon: "clock.fill",
-                        value: completedTrip.durationString,
-                        label: "Duration",
-                        color: .PrimaryTeal
-                    )
-                    
-                    StatCard(
-                        icon: "photo.fill",
-                        value: "\(completedTrip.photoCount)",
-                        label: "Photos",
-                        color: .SunsetOrange
-                    )
-                    
-                    if let rating = completedTrip.averageRating {
-                        StatCard(
-                            icon: "star.fill",
-                            value: String(format: "%.1f", rating),
-                            label: "Avg Rating",
-                            color: .SunsetOrange
-                        )
-                    }
-                    
-                    StatCard(
-                        icon: "checkmark.circle.fill",
-                        value: "\(completedTrip.checkIns.count)",
-                        label: "Check-ins",
-                        color: .FreshGreen
-                    )
-                }
-            }
-            .padding()
-            .background(Color.SurfaceWhite)
-            .cornerRadius(16)
+    // MARK: - Statistics Section
+    private var statisticsSection: some View {
+        HStack(spacing: 0) {
+            StatDetailCard(
+                value: "\(journey.stops.count)",
+                label: "Stops",
+                icon: "mappin.circle",
+                color: .PrimaryTeal
+            )
             
-            // Check-ins/Memories
-            if !completedTrip.checkIns.isEmpty {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Trip Memories")
-                        .font(.headingMedium)
-                        .foregroundColor(.TextPrimary)
-                    
-                    VStack(spacing: 12) {
-                        ForEach(completedTrip.checkIns) { checkIn in
-                            CheckInCard(
-                                checkIn: checkIn,
-                                stop: completedTrip.stops.first { $0.id == checkIn.stopId }
-                            )
-                        }
-                    }
-                }
-                .padding()
-                .background(Color.SurfaceWhite)
-                .cornerRadius(16)
-            }
+            Divider()
+                .frame(height: 60)
+            
+            StatDetailCard(
+                value: journey.distanceString,
+                label: "Distance",
+                icon: "location",
+                color: .SunsetOrange
+            )
+            
+            Divider()
+                .frame(height: 60)
+            
+            StatDetailCard(
+                value: journey.durationString,
+                label: "Duration",
+                icon: "clock",
+                color: .FreshGreen
+            )
         }
+        .background(Color.SurfaceWhite)
+        .cornerRadius(16)
     }
     
-    // MARK: - Saved Journey Content
-    @ViewBuilder
-    private var savedJourneyContent: some View {
-        if case .saved(let savedJourney) = trip {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Trip Details")
-                    .font(.headingMedium)
-                    .foregroundColor(.TextPrimary)
-                
-                VStack(spacing: 12) {
-                    InfoRow(
-                        icon: "clock",
-                        label: "Estimated Duration",
-                        value: savedJourney.durationString
-                    )
-                    
-                    InfoRow(
-                        icon: "calendar",
-                        label: "Saved On",
-                        value: formattedDate(savedJourney.savedAt)
-                    )
+    // MARK: - Action Buttons Section
+    private var actionButtonsSection: some View {
+        VStack(spacing: 12) {
+            if isCompleted {
+                // Journey completed - show view option
+                SecondaryButton("View Completed Journey", icon: "checkmark.circle.fill") {
+                    startJourney()
                 }
+                .disabled(true)
+                
+                Text("This journey has been completed")
+                    .font(.caption)
+                    .foregroundColor(.TextSecondary)
+            } else {
+                // Active journey - show start button
+                PrimaryButton("Start Journey", icon: "play.circle.fill") {
+                    startJourney()
+                }
+                
+                SecondaryButton("Save for Later", icon: "bookmark") {
+                    saveTrip()
+                }
+                
+                Text("Journey will be tracked and saved to your trips")
+                    .font(.caption)
+                    .foregroundColor(.TextSecondary)
+                    .multilineTextAlignment(.center)
             }
-            .padding()
-            .background(Color.SurfaceWhite)
-            .cornerRadius(16)
         }
     }
     
     // MARK: - Stops Section
     private var stopsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Journey Stops")
+            Text("Stops (\(journey.stops.count))")
                 .font(.headingMedium)
                 .foregroundColor(.TextPrimary)
             
-            VStack(spacing: 8) {
-                ForEach(getStops().indices, id: \.self) { index in
-                    let stop = getStops()[index]
-                    SimpleStopRow(
+            LazyVStack(spacing: 12) {
+                ForEach(Array(journey.stops.enumerated()), id: \.element.id) { index, stop in
+                    TripStopCard(
                         stop: stop,
-                        number: index + 1,
-                        isLast: index == getStops().count - 1
+                        stopNumber: index + 1,
+                        isLast: index == journey.stops.count - 1
                     )
                 }
             }
         }
-        .padding()
-        .background(Color.SurfaceWhite)
-        .cornerRadius(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
     
-    // MARK: - Action Buttons
-    private var actionButtons: some View {
-        VStack(spacing: 12) {
-            if !trip.isCompleted {
-                PrimaryButton("Start This Journey", icon: "location.fill") {
-                    startJourney()
-                }
-            }
-            
-            SecondaryButton("Share Trip", icon: "square.and.arrow.up") {
-                print("Share trip")
-            }
-        }
+    // MARK: - Computed Properties
+    private var isCompleted: Bool {
+        journey.stops.allSatisfy { $0.isCheckedIn }
     }
     
-    // MARK: - Helper Methods
-    
-    private func getStops() -> [Stop] {
-        switch trip {
-        case .completed(let completedTrip):
-            return completedTrip.stops
-        case .saved(let savedJourney):
-            return savedJourney.stops
-        }
+    private var isFavorited: Bool {
+        tripStorage.favoriteTripIds.contains(journey.id)
     }
     
-    private func formattedDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .long
-        return formatter.string(from: date)
-    }
-    
-    private func deleteTrip() {
-        switch trip {
-        case .completed(let completedTrip):
-            viewModel.deleteCompletedTrip(completedTrip)
-        case .saved(let savedJourney):
-            viewModel.deleteSavedJourney(savedJourney)
-        }
-        dismiss()
-    }
-    
+    // MARK: - Actions
     private func startJourney() {
-        // Will implement journey start in future
-        print("Starting journey: \(trip.name)")
+        // Create active journey using JourneyService
+        let newActiveJourney = JourneyService.shared.startJourney(from: journey)
+        activeJourney = newActiveJourney
+        showingActiveJourney = true
+        
+        // Call the provided callback
+        onStartJourney()
+        
+        // Dismiss this sheet
         dismiss()
+    }
+    
+    private func saveTrip() {
+        tripStorage.saveTrip(journey)
+        
+        // Show some feedback (could add a toast notification here)
+        print("Trip saved successfully")
+    }
+    
+    private func toggleFavorite() {
+        if isFavorited {
+            tripStorage.removeFromFavorites(journey.id)
+        } else {
+            tripStorage.addToFavorites(journey.id)
+        }
     }
 }
 
-// MARK: - Check-In Card Component
-struct CheckInCard: View {
-    let checkIn: CheckIn
-    let stop: Stop?
+// MARK: - Stat Detail Card Component
+struct StatDetailCard: View {
+    let value: String
+    let label: String
+    let icon: String
+    let color: Color
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header
-            HStack {
-                if let stop = stop {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(stop.name)
-                            .font(.headingSmall)
-                            .foregroundColor(.TextPrimary)
-                        
-                        Text(checkIn.formattedTimestamp)
-                            .font(.caption)
-                            .foregroundColor(.TextSecondary)
-                    }
-                }
-                
-                Spacer()
-                
-                // Rating
-                if let rating = checkIn.rating {
-                    HStack(spacing: 2) {
-                        ForEach(1...5, id: \.self) { star in
-                            Image(systemName: star <= rating ? "star.fill" : "star")
-                                .font(.caption)
-                                .foregroundColor(.SunsetOrange)
-                        }
-                    }
-                }
-            }
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(color)
             
-            // Notes
-            if let notes = checkIn.notes, !notes.isEmpty {
-                Text(notes)
-                    .font(.bodyMedium)
-                    .foregroundColor(.TextSecondary)
-                    .lineSpacing(4)
-            }
+            Text(value)
+                .font(.headingSmall)
+                .fontWeight(.semibold)
+                .foregroundColor(.TextPrimary)
             
-            // Photo indicator
-            if checkIn.hasPhoto {
-                HStack(spacing: 6) {
-                    Image(systemName: "photo.fill")
-                        .font(.caption)
-                    Text("Photo attached")
-                        .font(.caption)
-                }
-                .foregroundColor(.PrimaryTeal)
-            }
+            Text(label)
+                .font(.caption)
+                .foregroundColor(.TextSecondary)
         }
-        .padding()
-        .background(Color.BackgroundGray)
-        .cornerRadius(12)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
     }
 }
 
-// MARK: - Simple Stop Row Component
-struct SimpleStopRow: View {
+// MARK: - Trip Stop Card Component
+struct TripStopCard: View {
     let stop: Stop
-    let number: Int
+    let stopNumber: Int
     let isLast: Bool
     
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            // Number indicator
+        HStack(spacing: 16) {
+            // Stop number and connector
             VStack(spacing: 0) {
                 ZStack {
                     Circle()
                         .fill(Color(stop.type.colorName))
                         .frame(width: 32, height: 32)
                     
-                    Text("\(number)")
+                    Text("\(stopNumber)")
                         .font(.caption)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
@@ -407,20 +268,30 @@ struct SimpleStopRow: View {
                 
                 if !isLast {
                     Rectangle()
-                        .fill(Color(stop.type.colorName).opacity(0.3))
+                        .fill(Color.TextSecondary.opacity(0.3))
                         .frame(width: 2, height: 40)
                 }
             }
             
-            // Content
+            // Stop information
             VStack(alignment: .leading, spacing: 6) {
-                Text(stop.name)
-                    .font(.bodyLarge)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.TextPrimary)
+                HStack {
+                    Text(stop.name)
+                        .font(.headingSmall)
+                        .foregroundColor(.TextPrimary)
+                        .lineLimit(1)
+                    
+                    Spacer()
+                    
+                    if stop.isCheckedIn {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.body)
+                            .foregroundColor(.FreshGreen)
+                    }
+                }
                 
                 Text(stop.description)
-                    .font(.bodyMedium)
+                    .font(.bodySmall)
                     .foregroundColor(.TextSecondary)
                     .lineLimit(2)
                 
@@ -434,8 +305,13 @@ struct SimpleStopRow: View {
                         .foregroundColor(.TextSecondary)
                 }
             }
-            .padding(.bottom, isLast ? 0 : 12)
+            
+            Spacer()
         }
+        .padding(12)
+        .background(Color.SurfaceWhite)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
     }
 }
 
@@ -443,8 +319,10 @@ struct SimpleStopRow: View {
 struct TripDetailSheet_Previews: PreviewProvider {
     static var previews: some View {
         TripDetailSheet(
-            trip: .completed(CompletedTrip.sample),
-            viewModel: MyTripsViewModel()
+            journey: GeneratedJourney.sample,
+            onStartJourney: {
+                print("Starting journey...")
+            }
         )
     }
 }

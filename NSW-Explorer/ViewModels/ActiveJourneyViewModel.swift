@@ -55,12 +55,15 @@ class ActiveJourneyViewModel: ObservableObject {
     }
     
     /// Complete the current journey
-    /// Marks journey as completed with timestamp
+    /// Marks journey as completed with timestamp and syncs with JourneyService
     func completeJourney() {
         guard var journey = activeJourney else { return }
         
         journey.completedAt = Date()
         activeJourney = journey
+        
+        // Update JourneyService and TripStorageService
+        JourneyService.shared.completeJourney()
         
         // In Section 7, this will update database
         print("Completed journey: \(journey.journeyName)")
@@ -68,6 +71,9 @@ class ActiveJourneyViewModel: ObservableObject {
     
     /// Abandon/cancel the current journey
     func cancelJourney() {
+        // Update JourneyService
+        JourneyService.shared.cancelJourney()
+        
         activeJourney = nil
         
         // In Section 7, this will update database status

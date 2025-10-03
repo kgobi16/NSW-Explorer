@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct FlowLayout<Content: View>: View {
+struct FlowLayout <Content: View>: View {
     let spacing: CGFloat
     let content: () -> Content
     

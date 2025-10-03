@@ -8,73 +8,82 @@ struct TripMapView: View {
         span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
     )
     
+    @State private var showingActiveJourney = false
+    @State private var activeJourney: ActiveJourney?
+    @Environment(\.dismiss) var dismiss
+    
     var body: some View {
-        VStack(spacing: 0) {
-            // Map
-            Map(coordinateRegion: $region, annotationItems: journey.stops) { stop in
-                MapAnnotation(coordinate: stop.coordinate) {
-                    StopMapAnnotation(stop: stop)
+        NavigationStack {
+            VStack(spacing: 0) {
+                // Map
+                Map(coordinateRegion: $region, annotationItems: journey.stops) { stop in
+                    MapAnnotation(coordinate: stop.coordinate) {
+                        StopMapAnnotation(stop: stop)
+                    }
                 }
-            }
-            .ignoresSafeArea(.container, edges: .top)
-            .onAppear {
-                setupMapRegion()
-            }
-            
-            // Bottom panel with trip details
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(journey.title)
-                            .font(.headingLarge)
-                            .foregroundColor(.textPrimary)
-                        
-                        Text("\(journey.stops.count) stops • \(journey.distanceString) • \(journey.durationString)")
-                            .font(.bodyMedium)
-                            .foregroundColor(.textSecondary)
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        // Start journey action
-                    }) {
-                        Image(systemName: "play.fill")
-                            .foregroundColor(.white)
-                            .frame(width: 44, height: 44)
-                            .background(Color.primaryTeal)
-                            .clipShape(Circle())
-                    }
+                .ignoresSafeArea(.container, edges: .top)
+                .onAppear {
+                    setupMapRegion()
                 }
                 
-                // Stop list preview
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 12) {
-                        ForEach(Array(journey.stops.enumerated()), id: \.element.id) { index, stop in
-                            MapStopPreviewCard(stop: stop, index: index + 1)
+                // Bottom panel with trip details
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(journey.title)
+                                .font(.headingLarge)
+                                .foregroundColor(.TextPrimary)
+                            
+                            Text("\(journey.stops.count) stops • \(journey.distanceString) • \(journey.durationString)")
+                                .font(.bodyMedium)
+                                .foregroundColor(.TextSecondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Button(action: startJourney) {
+                            Image(systemName: "play.fill")
+                                .foregroundColor(.white)
+                                .frame(width: 44, height: 44)
+                                .background(Color.PrimaryTeal)
+                                .clipShape(Circle())
                         }
                     }
-                    .padding(.horizontal)
+                    
+                    // Stop list preview
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LazyHStack(spacing: 12) {
+                            ForEach(Array(journey.stops.enumerated()), id: \.element.id) { index, stop in
+                                MapStopPreviewCard(stop: stop, index: index + 1)
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                }
+                .padding()
+                .background(Color.SurfaceWhite)
+                .cornerRadius(20, corners: [.topLeft, .topRight])
+                .shadow(color: .black.opacity(0.1), radius: 10, y: -5)
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Menu {
+                        Button(action: shareTrip) {
+                            Label("Share Trip", systemImage: "square.and.arrow.up")
+                        }
+                        Button(action: saveTrip) {
+                            Label("Save to My Trips", systemImage: "heart")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .foregroundColor(.TextPrimary)
+                    }
                 }
             }
-            .padding()
-            .background(Color.SurfaceWhite)
-            .cornerRadius(20, corners: [.topLeft, .topRight])
-            .shadow(color: .black.opacity(0.1), radius: 10, y: -5)
-        }
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Menu {
-                    Button(action: {}) {
-                        Label("Share Trip", systemImage: "square.and.arrow.up")
-                    }
-                    Button(action: {}) {
-                        Label("Save to My Trips", systemImage: "heart")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .foregroundColor(.textPrimary)
+            .navigationDestination(isPresented: $showingActiveJourney) {
+                if let activeJourney = activeJourney {
+                    ActiveJourneyView(activeJourney: activeJourney)
                 }
             }
         }
@@ -101,6 +110,28 @@ struct TripMapView: View {
         
         region = MKCoordinateRegion(center: center, span: span)
     }
+    
+    // MARK: - Actions
+    
+    private func startJourney() {
+        // Create active journey using JourneyService
+        let newActiveJourney = JourneyService.shared.startJourney(from: journey)
+        activeJourney = newActiveJourney
+        showingActiveJourney = true
+        
+        // Dismiss this view if it's a sheet
+        dismiss()
+    }
+    
+    private func shareTrip() {
+        // Future implementation for sharing functionality
+        print("Share trip: \(journey.title)")
+    }
+    
+    private func saveTrip() {
+        TripStorageService.shared.saveTrip(journey)
+        print("Trip saved: \(journey.title)")
+    }
 }
 
 struct StopMapAnnotation: View {
@@ -122,7 +153,7 @@ struct StopMapAnnotation: View {
             Text(stop.name)
                 .font(.caption2)
                 .fontWeight(.medium)
-                .foregroundColor(.textPrimary)
+                .foregroundColor(.TextPrimary)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(Color.SurfaceWhite)
@@ -158,21 +189,21 @@ struct MapStopPreviewCard: View {
                 Text(stop.name)
                     .font(.bodyMedium)
                     .fontWeight(.medium)
-                    .foregroundColor(.textPrimary)
+                    .foregroundColor(.TextPrimary)
                     .lineLimit(1)
                 
                 Text(stop.durationString)
                     .font(.caption)
-                    .foregroundColor(.textSecondary)
+                    .foregroundColor(.TextSecondary)
                 
                 if let rating = stop.rating {
                     HStack(spacing: 2) {
                         Image(systemName: "star.fill")
                             .font(.caption)
-                            .foregroundColor(.sunsetOrange)
+                            .foregroundColor(.SunsetOrange)
                         Text(String(format: "%.1f", rating))
                             .font(.caption)
-                            .foregroundColor(.textSecondary)
+                            .foregroundColor(.TextSecondary)
                     }
                 }
             }
@@ -181,7 +212,7 @@ struct MapStopPreviewCard: View {
         }
         .frame(width: 120, height: 100)
         .padding()
-        .background(Color.backgroundGray)
+        .background(Color.BackgroundGray)
         .cornerRadius(12)
     }
 }

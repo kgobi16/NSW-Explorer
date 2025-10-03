@@ -16,6 +16,7 @@ struct CheckInView: View {
     let onCheckIn: (String?, String?, Int?) -> Void
     
     @Environment(\.dismiss) var dismiss
+    @StateObject private var activeJourneyViewModel = ActiveJourneyViewModel()
     
     @State private var notes: String = ""
     @State private var rating: Int? = nil
@@ -229,15 +230,52 @@ struct CheckInView: View {
     
     private func performCheckIn() {
         var photoFilename: String? = nil
-        if photoImage != nil {
-            photoFilename = "photo_\(UUID().uuidString).jpg"
+        
+        // Save photo locally if one was selected
+        if let image = photoImage {
+            photoFilename = savePhotoLocally(image)
         }
         
         let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         let finalNotes = trimmedNotes.isEmpty ? nil : trimmedNotes
         
+        // Save the check-in data through ActiveJourneyViewModel
+        activeJourneyViewModel.checkIn(
+            at: stop,
+            notes: finalNotes,
+            photoFilename: photoFilename,
+            rating: rating
+        )
+        
+        // Also call the provided callback for compatibility
         onCheckIn(finalNotes, photoFilename, rating)
         dismiss()
+    }
+    
+    /// Save photo to local documents directory and return filename
+    private func savePhotoLocally(_ image: UIImage) -> String? {
+        guard let imageData = image.jpegData(compressionQuality: 0.8) else {
+            print("Failed to convert image to data")
+            return nil
+        }
+        
+        let filename = "photo_\(UUID().uuidString).jpg"
+        
+        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            print("Failed to get documents directory")
+            return nil
+        }
+        
+        let fileURL = documentsDirectory.appendingPathComponent(filename)
+        
+        do {
+            try imageData.write(to: fileURL)
+            print("Photo saved successfully: \(filename)")
+            return filename
+        } catch {
+            print("Failed to save photo: \(error)")
+            return nil
+        }
     }
 }
 

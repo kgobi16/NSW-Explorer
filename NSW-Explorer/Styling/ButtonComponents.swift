@@ -306,26 +306,29 @@ struct ButtonComponents_Previews: PreviewProvider {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     
                     // Create a wrapped layout of chips
-                    FlowLayout(spacing: 8) {
-                        ChipButton("Beach", icon: "beach.umbrella", isSelected: true) {
-                            print("Beach selected")
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ChipButton("Beach", icon: "beach.umbrella", isSelected: true) {
+                                print("Beach selected")
+                            }
+                            
+                            ChipButton("Museum", icon: "building.columns") {
+                                print("Museum tapped")
+                            }
+                            
+                            ChipButton("Food", icon: "fork.knife", isSelected: true) {
+                                print("Food selected")
+                            }
+                            
+                            ChipButton("Nature", icon: "leaf") {
+                                print("Nature tapped")
+                            }
+                            
+                            ChipButton("Historic", icon: "building.2") {
+                                print("Historic tapped")
+                            }
                         }
-                        
-                        ChipButton("Museum", icon: "building.columns") {
-                            print("Museum tapped")
-                        }
-                        
-                        ChipButton("Food", icon: "fork.knife", isSelected: true) {
-                            print("Food selected")
-                        }
-                        
-                        ChipButton("Nature", icon: "leaf") {
-                            print("Nature tapped")
-                        }
-                        
-                        ChipButton("Historic", icon: "building.2") {
-                            print("Historic tapped")
-                        }
+                        .padding(.horizontal)
                     }
                 }
                 
@@ -345,59 +348,5 @@ struct ButtonComponents_Previews: PreviewProvider {
             .padding()
         }
         .background(Color.backgroundGray)
-    }
-}
-
-// MARK: - Flow Layout Helper
-/// Custom layout that wraps chip buttons to next line when needed
-/// This creates a natural flowing grid of chips
-struct FlowLayout: Layout {
-    var spacing: CGFloat = 8
-    
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let result = FlowResult(
-            in: proposal.replacingUnspecifiedDimensions().width,
-            subviews: subviews,
-            spacing: spacing
-        )
-        return result.size
-    }
-    
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = FlowResult(
-            in: bounds.width,
-            subviews: subviews,
-            spacing: spacing
-        )
-        for (index, subview) in subviews.enumerated() {
-            subview.place(at: CGPoint(x: bounds.minX + result.positions[index].x, y: bounds.minY + result.positions[index].y), proposal: .unspecified)
-        }
-    }
-    
-    struct FlowResult {
-        var size: CGSize = .zero
-        var positions: [CGPoint] = []
-        
-        init(in maxWidth: CGFloat, subviews: Subviews, spacing: CGFloat) {
-            var x: CGFloat = 0
-            var y: CGFloat = 0
-            var lineHeight: CGFloat = 0
-            
-            for subview in subviews {
-                let size = subview.sizeThatFits(.unspecified)
-                
-                if x + size.width > maxWidth && x > 0 {
-                    x = 0
-                    y += lineHeight + spacing
-                    lineHeight = 0
-                }
-                
-                positions.append(CGPoint(x: x, y: y))
-                lineHeight = max(lineHeight, size.height)
-                x += size.width + spacing
-            }
-            
-            self.size = CGSize(width: maxWidth, height: y + lineHeight)
-        }
     }
 }
