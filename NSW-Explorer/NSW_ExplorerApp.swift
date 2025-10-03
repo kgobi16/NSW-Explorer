@@ -11,7 +11,7 @@ import SwiftUI
 struct NSW_ExplorerApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainTabView()
         }
     }
 }

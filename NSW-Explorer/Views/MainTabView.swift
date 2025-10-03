@@ -5,77 +5,67 @@
 //  Created by Tlaitirang Rathete on 1/10/2025.
 //
 
+
 import SwiftUI
 
 struct MainTabView: View {
+    // MARK: - State Properties
     
+    /// Tracks which tab is currently selected
+    /// Starting at 0 means we show the Generator tab first
     @State private var selectedTab: Int = 0
     
     var body: some View {
-        
         TabView(selection: $selectedTab) {
             
-            HomeView()
+            // MARK: - Generator Tab (MAIN PAGE)
+            // The primary feature - AI-powered trip generation
+            GeneratorView()
                 .tabItem {
-                    Label{
-                        Text("Discover")
+                    Label {
+                        Text("Generate")
                     } icon: {
-                        Image(systemName: selectedTab == 0 ? "airplane" : "airplane")
+                        Image(systemName: selectedTab == 0 ? "sparkles" : "sparkles")
                     }
                 }
                 .tag(0)
             
-            GeneratorView()
-                .tabItem {
-                    Label{
-                        Text("Generator")
-                    } icon: {
-                        Image(systemName: selectedTab == 1 ? "sparkles" : "sparkles")
-                    }
-                }
-                .tag(1)
-            
+            // MARK: - My Trips Tab
+            // User's saved and completed journeys
             MyTripsView()
                 .tabItem {
                     Label {
                         Text("My Trips")
                     } icon: {
-                        // book represents a travel journal/log
-                        Image(systemName: selectedTab == 2 ? "book.fill" : "book")
+                        Image(systemName: selectedTab == 1 ? "book.fill" : "book")
                     }
                 }
-                .tag(2)
+                .tag(1)
             
+            // MARK: - Profile Tab
+            // User settings and preferences
             ProfileView()
                 .tabItem {
                     Label {
                         Text("Profile")
                     } icon: {
-                        // person represents the user/profile
-                        Image(systemName: selectedTab == 3 ? "person.fill" : "person")
+                        Image(systemName: selectedTab == 2 ? "person.fill" : "person")
                     }
                 }
-                .tag(3)
+                .tag(2)
         }
-        
-        // MARK: - Tab Bar Styling
         .onAppear {
-            
-            // Configure tab bar appearance for a modern look
             let appearance = UITabBarAppearance()
             appearance.configureWithDefaultBackground()
             appearance.backgroundColor = UIColor(Color.SurfaceWhite.opacity(0.95))
             UITabBar.appearance().standardAppearance = appearance
-            
-            // Ensure it looks good when scrolling content behind it
             if #available(iOS 15.0, *) {
                 UITabBar.appearance().scrollEdgeAppearance = appearance
             }
         }
-        .tint(Color.PrimaryTeal)
+        .tint(Color.primaryTeal)
     }
 }
-
 
 // MARK: - Preview Provider
 struct MainTabView_Previews: PreviewProvider {
@@ -83,5 +73,3 @@ struct MainTabView_Previews: PreviewProvider {
         MainTabView()
     }
 }
-
-
